@@ -115,6 +115,118 @@ DevFlow is a full-stack productivity platform that combines task management, mar
 
 ---
 
+## Project Architecture
+
+```
+devflow/
+├── client/                        # React frontend (Vite)
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/                # Reusable primitives (ErrorBoundary, Toast)
+│   │   │   ├── MarkdownRenderer.jsx
+│   │   │   ├── RoadmapViewer.jsx
+│   │   │   └── TaskForm.jsx
+│   │   ├── hooks/                 # Custom React hooks
+│   │   │   ├── useApiCall.js
+│   │   │   └── useOptimisticUpdate.js
+│   │   ├── layouts/
+│   │   │   └── DashboardLayout.jsx  # Sidebar + mobile drawer
+│   │   ├── pages/                 # Route-level page components
+│   │   │   ├── AnalyticsPage.jsx
+│   │   │   ├── DashboardPage.jsx
+│   │   │   ├── ForgotPasswordPage.jsx
+│   │   │   ├── LearningPathsPage.jsx
+│   │   │   ├── LoginPage.jsx
+│   │   │   ├── MentorPage.jsx
+│   │   │   ├── NotesPage.jsx
+│   │   │   ├── NotFoundPage.jsx
+│   │   │   ├── ResetPasswordPage.jsx
+│   │   │   ├── SignupPage.jsx
+│   │   │   ├── TasksPage.jsx
+│   │   │   └── VerifyEmailPage.jsx
+│   │   ├── routes/
+│   │   │   ├── AppRoutes.jsx      # All route definitions
+│   │   │   └── ProtectedRoute.jsx # Auth guard
+│   │   ├── services/
+│   │   │   └── api.js             # Axios instance + SSE streaming
+│   │   ├── store/
+│   │   │   ├── authStore.js       # Zustand auth (persisted)
+│   │   │   └── toastStore.js      # Toast notification state
+│   │   ├── styles/
+│   │   │   └── global.css         # Tailwind directives + theme
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── vercel.json
+│   └── .env.example
+│
+├── server/                        # Express backend
+│   ├── src/
+│   │   ├── config/
+│   │   │   ├── db.js              # MongoDB connector + in-memory fallback
+│   │   │   ├── env.js             # Zod-validated environment config
+│   │   │   └── passport.js        # OAuth strategy setup
+│   │   ├── controllers/
+│   │   │   ├── ai.controller.js
+│   │   │   ├── auth.controller.js
+│   │   │   ├── dashboard.controller.js
+│   │   │   ├── learningPath.controller.js
+│   │   │   ├── note.controller.js
+│   │   │   ├── task.controller.js
+│   │   │   └── user.controller.js
+│   │   ├── middleware/
+│   │   │   ├── auth.middleware.js
+│   │   │   ├── error.middleware.js
+│   │   │   ├── notFound.middleware.js
+│   │   │   ├── rateLimit.middleware.js
+│   │   │   ├── requestId.middleware.js
+│   │   │   ├── response.middleware.js
+│   │   │   └── validate.middleware.js
+│   │   ├── models/
+│   │   │   ├── LearningPath.js
+│   │   │   ├── Note.js
+│   │   │   ├── Task.js
+│   │   │   └── User.js
+│   │   ├── routes/
+│   │   │   ├── ai.routes.js
+│   │   │   ├── auth.routes.js
+│   │   │   ├── dashboard.routes.js
+│   │   │   ├── learningPath.routes.js
+│   │   │   ├── note.routes.js
+│   │   │   ├── task.routes.js
+│   │   │   └── user.routes.js
+│   │   ├── services/
+│   │   │   ├── ai/                # AI provider implementations
+│   │   │   │   ├── aiProvider.js       # Abstract base + mocks
+│   │   │   │   ├── openai.provider.js  # OpenAI implementation
+│   │   │   │   └── gemini.provider.js  # Google Gemini implementation
+│   │   │   ├── ai.service.js      # Provider orchestrator
+│   │   │   ├── auth.service.js
+│   │   │   ├── email.service.js   # Resend email integration
+│   │   │   └── user.service.js
+│   │   ├── utils/
+│   │   │   ├── ApiError.js        # Custom error class
+│   │   │   ├── logger.js          # Winston logger
+│   │   │   └── token.js           # JWT + refresh token helpers
+│   │   └── validators/
+│   │       ├── auth.validator.js
+│   │       ├── learningPath.validator.js
+│   │       ├── note.validator.js
+│   │       ├── task.validator.js
+│   │       └── user.validator.js
+│   ├── server.js                  # Entry point
+│   ├── .env.example
+│   └── package.json
+│
+├── docker-compose.yml             # Local MongoDB container
+├── render.yaml                    # Render deployment config
+├── package.json                   # Root scripts (monorepo)
+└── README.md
+```
 
 ---
 
@@ -142,8 +254,12 @@ DevFlow is a full-stack productivity platform that combines task management, mar
 ### API Structure
 
 All endpoints are prefixed with `/api/v1`. The Express app follows a layered architecture:
-Routes → Validators → Controllers → Services → Models (MongoDB) ↓ Middleware (auth, rate-limit, error handling, response formatting)
 
+```
+Routes → Validators → Controllers → Services → Models (MongoDB)
+                           ↓
+                     Middleware (auth, rate-limit, error handling, response formatting)
+```
 
 ### Controllers
 
@@ -259,27 +375,50 @@ cd devflow
 
 # Install all dependencies (root, client, server)
 npm run install:all
-Backend Configuration
+```
+
+### Backend Configuration
+
+```bash
 cd server
 cp .env.example .env
 # Edit .env with your values (see Environment Variables section)
-Frontend Configuration
+```
+
+### Frontend Configuration
+
+```bash
 cd client
 cp .env.example .env
 # Edit .env if needed
-Start MongoDB (Optional)
+```
+
+### Start MongoDB (Optional)
+
+```bash
 docker compose up -d mongo
+```
+
 If you skip this step, the server automatically starts an in-memory MongoDB instance.
 
-Run Locally
+### Run Locally
+
+```bash
 # From the root directory -- starts both client and server concurrently
 npm run dev
 
 # Or start individually:
 npm run dev:server   # Backend at http://localhost:5000
 npm run dev:client   # Frontend at http://localhost:5173
-Environment Variables
-Server (server/.env)
+```
+
+---
+
+## Environment Variables
+
+### Server (`server/.env`)
+
+```env
 # Node Environment
 NODE_ENV=development
 
@@ -320,110 +459,166 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
-Client (client/.env)
-VITE_API_URL=http://localhost:5000/api/v1
-API Overview
-All endpoints are prefixed with /api/v1. Responses follow the format:
+```
 
+### Client (`client/.env`)
+
+```env
+VITE_API_URL=http://localhost:5000/api/v1
+```
+
+---
+
+## API Overview
+
+All endpoints are prefixed with `/api/v1`. Responses follow the format:
+```json
 { "success": true, "message": "...", "data": { ... } }
-Authentication
-Method	Endpoint	Purpose	Auth
-POST	/auth/signup	Register a new user	No
-POST	/auth/login	Log in with email/password	No
-POST	/auth/refresh	Refresh access token	Cookie
-POST	/auth/logout	Log out and clear refresh token	No
-GET	/auth/me	Get current user profile	Bearer
-GET	/auth/verify-email	Verify email with token	No
-POST	/auth/resend-verification	Resend verification email	Bearer
-POST	/auth/forgot-password	Request password reset	No
-POST	/auth/reset-password	Reset password with token	No
-GET	/auth/google	Google OAuth login	No
-GET	/auth/google/callback	Google OAuth callback	No
-GET	/auth/github	GitHub OAuth login	No
-GET	/auth/github/callback	GitHub OAuth callback	No
-Users
-Method	Endpoint	Purpose	Auth
-PUT	/users/profile	Update user profile	Bearer
-Tasks
-Method	Endpoint	Purpose	Auth
-GET	/tasks	List tasks (filterable)	Bearer
-POST	/tasks	Create a task	Bearer
-PUT	/tasks/:id	Update a task	Bearer
-DELETE	/tasks/:id	Soft-delete a task	Bearer
-Notes
-Method	Endpoint	Purpose	Auth
-GET	/notes	List notes (filterable)	Bearer
-POST	/notes	Create a note	Bearer
-PUT	/notes/:id	Update a note	Bearer
-DELETE	/notes/:id	Soft-delete a note	Bearer
-Learning Paths
-Method	Endpoint	Purpose	Auth
-GET	/learning-paths	List learning paths	Bearer
-GET	/learning-paths/:id	Get a single path	Bearer
-POST	/learning-paths	Create a path manually	Bearer
-POST	/learning-paths/generate	AI-generate a roadmap	Bearer
-PUT	/learning-paths/:id	Update path (topic progress)	Bearer
-DELETE	/learning-paths/:id	Soft-delete a path	Bearer
-AI
-Method	Endpoint	Purpose	Auth
-POST	/ai/mentor	Ask AI mentor (non-streaming)	Bearer
-POST	/ai/mentor/stream	Ask AI mentor (SSE stream)	Bearer
-POST	/ai/summarize-note	Summarize note content	Bearer
-Dashboard
-Method	Endpoint	Purpose	Auth
-GET	/dashboard/stats	Dashboard statistics	Bearer
-GET	/dashboard/analytics	Analytics data	Bearer
-Health
-Method	Endpoint	Purpose	Auth
-GET	/health	Health check	No
-Roadmap
-User authentication with JWT + refresh token rotation
-OAuth integration (Google, GitHub)
-Email verification & password reset
-Task CRUD with subtasks, recurring, priorities
-Markdown notes with categories, pin, favorite, search
-AI-powered learning roadmap generation
-AI mentor chat with SSE streaming and roadmap context
-AI note summarization
-Dashboard with aggregated stats
-Analytics with bar, line, and heatmap charts
-Responsive sidebar navigation
-Input validation (Zod)
-Rate limiting, Helmet, CORS security
-In-memory MongoDB fallback for local development
-Docker Compose for MongoDB
-Deployment configs (Render + Vercel)
-Unit and integration tests (Jest + Supertest)
-End-to-end tests (Playwright / Cypress)
-CI/CD pipeline (GitHub Actions)
-Task and note pagination
-Collaborative note editing
-Future Improvements
+```
+
+### Authentication
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/auth/signup` | Register a new user | No |
+| POST | `/auth/login` | Log in with email/password | No |
+| POST | `/auth/refresh` | Refresh access token | Cookie |
+| POST | `/auth/logout` | Log out and clear refresh token | No |
+| GET | `/auth/me` | Get current user profile | Bearer |
+| GET | `/auth/verify-email` | Verify email with token | No |
+| POST | `/auth/resend-verification` | Resend verification email | Bearer |
+| POST | `/auth/forgot-password` | Request password reset | No |
+| POST | `/auth/reset-password` | Reset password with token | No |
+| GET | `/auth/google` | Google OAuth login | No |
+| GET | `/auth/google/callback` | Google OAuth callback | No |
+| GET | `/auth/github` | GitHub OAuth login | No |
+| GET | `/auth/github/callback` | GitHub OAuth callback | No |
+
+### Users
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| PUT | `/users/profile` | Update user profile | Bearer |
+
+### Tasks
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| GET | `/tasks` | List tasks (filterable) | Bearer |
+| POST | `/tasks` | Create a task | Bearer |
+| PUT | `/tasks/:id` | Update a task | Bearer |
+| DELETE | `/tasks/:id` | Soft-delete a task | Bearer |
+
+### Notes
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| GET | `/notes` | List notes (filterable) | Bearer |
+| POST | `/notes` | Create a note | Bearer |
+| PUT | `/notes/:id` | Update a note | Bearer |
+| DELETE | `/notes/:id` | Soft-delete a note | Bearer |
+
+### Learning Paths
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| GET | `/learning-paths` | List learning paths | Bearer |
+| GET | `/learning-paths/:id` | Get a single path | Bearer |
+| POST | `/learning-paths` | Create a path manually | Bearer |
+| POST | `/learning-paths/generate` | AI-generate a roadmap | Bearer |
+| PUT | `/learning-paths/:id` | Update path (topic progress) | Bearer |
+| DELETE | `/learning-paths/:id` | Soft-delete a path | Bearer |
+
+### AI
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/ai/mentor` | Ask AI mentor (non-streaming) | Bearer |
+| POST | `/ai/mentor/stream` | Ask AI mentor (SSE stream) | Bearer |
+| POST | `/ai/summarize-note` | Summarize note content | Bearer |
+
+### Dashboard
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| GET | `/dashboard/stats` | Dashboard statistics | Bearer |
+| GET | `/dashboard/analytics` | Analytics data | Bearer |
+
+### Health
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| GET | `/health` | Health check | No |
+
+---
+
+## Roadmap
+
+- [x] User authentication with JWT + refresh token rotation
+- [x] OAuth integration (Google, GitHub)
+- [x] Email verification & password reset
+- [x] Task CRUD with subtasks, recurring, priorities
+- [x] Markdown notes with categories, pin, favorite, search
+- [x] AI-powered learning roadmap generation
+- [x] AI mentor chat with SSE streaming and roadmap context
+- [x] AI note summarization
+- [x] Dashboard with aggregated stats
+- [x] Analytics with bar, line, and heatmap charts
+- [x] Responsive sidebar navigation
+- [x] Input validation (Zod)
+- [x] Rate limiting, Helmet, CORS security
+- [x] In-memory MongoDB fallback for local development
+- [x] Docker Compose for MongoDB
+- [x] Deployment configs (Render + Vercel)
+- [ ] Unit and integration tests (Jest + Supertest)
+- [ ] End-to-end tests (Playwright / Cypress)
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Task and note pagination
+- [ ] Collaborative note editing
+
+---
+
+## Future Improvements
+
 Based on the current architecture, realistic next steps include:
 
-Test Suite -- Add Jest + Supertest for API endpoints and React Testing Library for components.
-Pagination -- Implement cursor-based or offset pagination for tasks and notes.
-WebSocket Presence -- Add real-time collaboration indicators for shared workspaces.
-File Attachments -- Allow image/file uploads to notes and tasks.
-Mobile App -- Build a React Native companion app reusing the API.
-Spaced Repetition -- Integrate flashcards or review scheduling into learning paths.
-Team/Shared Workspaces -- Multi-user collaboration on roadmaps and tasks.
-Browser Push Notifications -- Reminders for due tasks and learning streaks.
-Public Roadmap Sharing -- Share learning paths as public profile pages.
-Dark/Light Theme Toggle -- Full theme support (the User model already has a theme field).
-Contributing
+1. **Test Suite** -- Add Jest + Supertest for API endpoints and React Testing Library for components.
+2. **Pagination** -- Implement cursor-based or offset pagination for tasks and notes.
+3. **WebSocket Presence** -- Add real-time collaboration indicators for shared workspaces.
+4. **File Attachments** -- Allow image/file uploads to notes and tasks.
+5. **Mobile App** -- Build a React Native companion app reusing the API.
+6. **Spaced Repetition** -- Integrate flashcards or review scheduling into learning paths.
+7. **Team/Shared Workspaces** -- Multi-user collaboration on roadmaps and tasks.
+8. **Browser Push Notifications** -- Reminders for due tasks and learning streaks.
+9. **Public Roadmap Sharing** -- Share learning paths as public profile pages.
+10. **Dark/Light Theme Toggle** -- Full theme support (the User model already has a `theme` field).
+
+---
+
+## Contributing
+
 Contributions are welcome. Please follow these guidelines:
 
-Fork the repository and create a feature branch.
-Install dependencies: npm run install:all
-Make your changes, ensuring existing lint rules pass: npm run lint (runs in both client/ and server/)
-Format code: npm run format (runs Prettier)
-Open a pull request with a clear description of the change.
-Code Style
-ESLint + Prettier configurations are included for both client/ and server/
-Follow the existing patterns for controllers, services, and components
-Keep secret keys out of source control
-License
-MIT
+1. Fork the repository and create a feature branch.
+2. Install dependencies: `npm run install:all`
+3. Make your changes, ensuring existing lint rules pass: `npm run lint` (runs in both `client/` and `server/`)
+4. Format code: `npm run format` (runs Prettier)
+5. Open a pull request with a clear description of the change.
 
-Built with React, Express, MongoDB, and OpenAI/Gemini.
+### Code Style
+
+- ESLint + Prettier configurations are included for both `client/` and `server/`
+- Follow the existing patterns for controllers, services, and components
+- Keep secret keys out of source control
+
+---
+
+## License
+
+[MIT](LICENSE)
+
+---
+
+<div align="center">
+  <sub>Built with React, Express, MongoDB, and OpenAI/Gemini.</sub>
+</div>
