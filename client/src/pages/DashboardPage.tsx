@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Flame, CheckSquare, FileText, Map, Sparkles, MessageSquare, Plus, Clock } from 'lucide-react'
+import { ArrowRight, Flame, CheckSquare, Sparkles, MessageSquare, Plus, Clock } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import api from '../services/api'
 
@@ -8,16 +8,14 @@ const DashboardPage = () => {
   const user = useAuthStore((state) => state.user)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   const fetchDashboardStats = async () => {
     setLoading(true)
-    setError('')
     try {
       const response = await api.get('/dashboard/stats')
       setStats(response.data.data.stats)
-    } catch (err) {
-      setError('Unable to fetch stats. Please reload.')
+    } catch {
+      // Failed to fetch stats
     } finally {
       setLoading(false)
     }
@@ -54,7 +52,7 @@ const DashboardPage = () => {
             Welcome back{user ? `, ${user.firstName || user.username}` : ''}
           </h1>
           <p className="mt-2 max-w-2xl text-slate-400">
-            Here's a snapshot of your progress, upcoming focuses, and learning momentum.
+            Here&apos;s a snapshot of your progress, upcoming focuses, and learning momentum.
           </p>
         </div>
 
@@ -101,7 +99,7 @@ const DashboardPage = () => {
         {/* Today's Focus */}
         <article className="rounded-3xl border border-slate-850 bg-slate-900/40 p-6 shadow-md hover:bg-slate-900/60 transition-colors backdrop-blur">
           <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-extrabold flex items-center gap-1.5">
-            <CheckSquare size={12} className="text-sky-400" /> Today's Focus
+            <CheckSquare size={12} className="text-sky-400" /> Today&apos;s Focus
           </p>
           <h2 className="mt-4 text-xl font-bold text-white leading-snug line-clamp-2">
             {stats?.todayFocus || 'Create a task to set focus'}

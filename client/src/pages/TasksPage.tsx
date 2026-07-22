@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Plus, Check, Square, Edit, Trash2, Calendar, Tag, AlertCircle } from 'lucide-react'
+import { Plus, Check, Edit, Trash2, Calendar, Tag, AlertCircle } from 'lucide-react'
 import api from '../services/api'
 import TaskForm from '../components/TaskForm'
+import useToastStore from '../store/toastStore'
 
 const TasksPage = () => {
+  const addToast = useToastStore((state) => state.addToast)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,30 +56,32 @@ const TasksPage = () => {
   const handleCreateOrUpdate = async (formData) => {
     try {
       if (editingTask) {
-        // Update
         const response = await api.put(`/tasks/${editingTask._id}`, formData)
         const updatedTask = response.data.data.task
         setTasks(prev => prev.map(t => (t._id === updatedTask._id ? updatedTask : t)))
+        addToast('Task updated')
       } else {
-        // Create
         const response = await api.post('/tasks', formData)
         const newTask = response.data.data.task
         setTasks(prev => [newTask, ...prev])
+        addToast('Task created')
       }
       setIsModalOpen(false)
       setEditingTask(null)
     } catch (err) {
       setError('Failed to save task. Try again.')
+      addToast('Failed to save task', 'error')
     }
   }
 
   const handleDeleteTask = async (id) => {
-    // Optimistic delete
     setTasks(prev => prev.filter(t => t._id !== id))
     try {
       await api.delete(`/tasks/${id}`)
+      addToast('Task deleted')
     } catch (err) {
       fetchTasks()
+      addToast('Failed to delete task', 'error')
     }
   }
 
@@ -212,20 +216,26 @@ const TasksPage = () => {
                   <Check size={14} className="stroke-[3]" />
                 </button>
 
-                <div className="min-w-0 flex-1">
-                  <h3
-                    className={`font-semibold text-sm sm:text-base text-white transition truncate ${
-                      task.status === 'completed' ? 'line-through text-slate-400' : ''
-                    }`}
-                  >
-                    {task.title}
-                  </h3>
-                  {task.description && (
-                    <p className="text-xs text-slate-400 mt-1 truncate max-w-xl group-hover:text-slate-300">
-                      {task.description}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`font-semibold text-sm sm:text-base text-white transition truncate ${task.status === 'completed' ? 'line-through text-slate-400' : ''}`}>
+                      {task.title}
+                    </h3>
+                    {task.description && (
+                      <p className="text-xs text-slate-400 mt-1 truncate max-w-xl group-hover:text-slate-300">{task.description}</p>
+                    )}
+
+                    {task.subtasks && task.subtasks.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {task.subtasks.map((st, si) => (
+                          <div key={si} className="flex items-center gap-2 text-xs">
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${st.completed ? 'bg-sky-500' : 'bg-slate-700'}`} />
+                            <span className={`${st.completed ? 'line-through text-slate-500' : 'text-slate-400'}`}>{st.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
                     {/* Category */}
                     <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
                       <Tag size={10} />

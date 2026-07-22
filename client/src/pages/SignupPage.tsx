@@ -21,8 +21,8 @@ const SignupPage = () => {
 
     try {
       const response = await api.post('/auth/signup', form)
-      const { user, token } = response.data.data
-      setCredentials(user, token)
+      const { user, accessToken, token } = response.data.data || {}
+      setCredentials(user, accessToken || token)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to create account. Please try again.')

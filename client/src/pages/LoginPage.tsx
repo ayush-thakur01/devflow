@@ -21,8 +21,8 @@ const LoginPage = () => {
 
     try {
       const response = await api.post('/auth/login', form)
-      const { user, token } = response.data.data
-      setCredentials(user, token)
+      const { user, accessToken, token } = response.data.data || {}
+      setCredentials(user, accessToken || token)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to login. Please try again.')
@@ -66,6 +66,12 @@ const LoginPage = () => {
           </label>
 
           {error && <p className="text-sm text-rose-400">{error}</p>}
+
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-xs text-slate-400 hover:text-sky-300 transition">
+              Forgot password?
+            </Link>
+          </div>
 
           <button
             type="submit"

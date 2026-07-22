@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, ArrowRight, Sparkles, AlertCircle, Award, Clock, ArrowUpRight } from 'lucide-react'
+import { Sparkles, AlertCircle, Clock, ArrowUpRight } from 'lucide-react'
 import api from '../services/api'
 import RoadmapViewer from '../components/RoadmapViewer'
 
@@ -132,7 +132,7 @@ const LearningPathsPage = () => {
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 placeholder="e.g. Master React and Tailwind in 3 weeks, or prepare for AWS Cloud Practitioner exam."
-                rows="4"
+                rows={4}
                 disabled={generating}
                 className="mt-2.5 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-sky-400 resize-none disabled:opacity-55"
                 required

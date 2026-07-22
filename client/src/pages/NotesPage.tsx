@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, Pin, Heart, Trash2, Eye, Edit2, Save, Tag, FileText } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Plus, Pin, Heart, Trash2, Eye, Edit2, Save, Tag, FileText, Sparkles, X } from 'lucide-react'
 import api from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 
@@ -7,7 +7,6 @@ const NotesPage = () => {
   const [notes, setNotes] = useState([])
   const [activeNote, setActiveNote] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   
@@ -16,7 +15,6 @@ const NotesPage = () => {
 
   const fetchNotes = async () => {
     setLoading(true)
-    setError('')
     try {
       const response = await api.get('/notes')
       const fetchedNotes = response.data.data.notes || []
@@ -24,8 +22,8 @@ const NotesPage = () => {
       if (fetchedNotes.length > 0 && !activeNote) {
         setActiveNote(fetchedNotes[0])
       }
-    } catch (err) {
-      setError('Failed to fetch notes.')
+    } catch {
+      // Failed to fetch notes
     } finally {
       setLoading(false)
     }
@@ -47,8 +45,8 @@ const NotesPage = () => {
       setNotes(prev => [newNote, ...prev])
       setActiveNote(newNote)
       setEditorMode('edit')
-    } catch (err) {
-      setError('Failed to create new note.')
+    } catch {
+      // Failed to create note
     }
   }
 
@@ -64,8 +62,8 @@ const NotesPage = () => {
       const updatedNote = response.data.data.note
       setNotes(prev => prev.map(n => (n._id === updatedNote._id ? updatedNote : n)))
       setActiveNote(updatedNote)
-    } catch (err) {
-      setError('Failed to save note.')
+    } catch {
+      // Failed to save note
     }
   }
 
@@ -77,8 +75,8 @@ const NotesPage = () => {
       if (activeNote?._id === id) {
         setActiveNote(remainingNotes.length > 0 ? remainingNotes[0] : null)
       }
-    } catch (err) {
-      setError('Failed to delete note.')
+    } catch {
+      // Failed to delete note
     }
   }
 
@@ -116,6 +114,23 @@ const NotesPage = () => {
 
   const handleNoteChange = (field, value) => {
     setActiveNote(prev => ({ ...prev, [field]: value }))
+  }
+
+  const [summarizing, setSummarizing] = useState(false)
+  const [summary, setSummary] = useState('')
+
+  const handleSummarize = async () => {
+    if (!activeNote?.content?.trim()) return
+    setSummarizing(true)
+    setSummary('')
+    try {
+      const res = await api.post('/ai/summarize-note', { content: activeNote.content })
+      setSummary(res.data.data.summary)
+    } catch {
+      // Failed to generate summary
+    } finally {
+      setSummarizing(false)
+    }
   }
 
   // Categories list
@@ -275,6 +290,19 @@ const NotesPage = () => {
                   <Heart size={15} className={activeNote.favorite ? 'fill-rose-500/20' : ''} />
                 </button>
 
+                <button
+                  onClick={handleSummarize}
+                  disabled={summarizing || !activeNote?.content?.trim()}
+                  className={`p-2 rounded-xl transition border ${
+                    summarizing
+                      ? 'border-sky-500/20 bg-sky-500/10 text-sky-400 animate-pulse'
+                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-sky-400 hover:border-sky-500/20'
+                  }`}
+                  title="Summarize Note"
+                >
+                  <Sparkles size={15} />
+                </button>
+
                 <div className="h-6 w-px bg-slate-850 mx-1" />
 
                 {/* Edit/Preview Toggle */}
@@ -318,6 +346,21 @@ const NotesPage = () => {
                 </button>
               </div>
             </div>
+
+            {/* Summary Banner */}
+            {summary && (
+              <div className="px-6 py-3 mx-6 mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5">
+                <div className="flex items-start gap-2.5">
+                  <Sparkles size={16} className="text-sky-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-slate-300 leading-relaxed markdown-content">
+                    <MarkdownRenderer content={summary} />
+                  </div>
+                  <button onClick={() => setSummary('')} className="p-0.5 text-slate-500 hover:text-slate-300 flex-shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Note Content Panel */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
