@@ -1,0 +1,12 @@
+# Root ignore for all subprojects
+node_modules
+.env
+.env.*
+!.env.example
+!.env.example.*
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.idea
+.vscode
