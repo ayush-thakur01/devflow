@@ -1,12 +1,16 @@
 # Root ignore for all subprojects
 node_modules
+dist/
 .env
 .env.*
 !.env.example
 !.env.example.*
 .DS_Store
+Thumbs.db
+desktop.ini
+*.log
 npm-debug.log*
 yarn-debug.log*
-pnpm-debug.log*
+pnp-debug.log*
 .idea
 .vscode
