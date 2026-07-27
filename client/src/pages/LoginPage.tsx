@@ -1,7 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Sparkles, Eye, EyeOff } from 'lucide-react'
 import api from '../services/api'
 import useAuthStore from '../store/authStore'
+import Button from '../components/ui/Button'
+
+const FloatingOrb = ({ delay = 0, size = 300, color = 'rgba(56,189,248,0.08)', x = '0%', y = '0%' }) => (
+  <motion.div
+    className="absolute rounded-full blur-3xl pointer-events-none"
+    style={{ width: size, height: size, background: color, left: x, top: y }}
+    animate={{
+      x: ['0%', '15%', '-10%', '5%', '0%'],
+      y: ['0%', '-10%', '15%', '5%', '0%'],
+      scale: [1, 1.15, 0.9, 1.05, 1],
+    }}
+    transition={{ duration: 12, delay, repeat: Infinity, ease: 'easeInOut' }}
+  />
+)
 
 const LoginPage = () => {
   const navigate = useNavigate()
@@ -9,86 +25,157 @@ const LoginPage = () => {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const emailRef = useRef(null)
 
-  const handleChange = (event) => {
-    setForm({ ...form, [event.target.name]: event.target.value })
-  }
+  useEffect(() => { emailRef.current?.focus() }, [])
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     setError('')
     setLoading(true)
-
     try {
-      const response = await api.post('/auth/login', form)
-      const { user, accessToken, token } = response.data.data || {}
+      const res = await api.post('/auth/login', form)
+      const { user, accessToken, token } = res.data.data || {}
       setCredentials(user, accessToken || token)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to login. Please try again.')
+      setError(err.response?.data?.message || 'Invalid credentials. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/90 p-8 shadow-[0_20px_60px_rgba(14,29,61,0.45)] backdrop-blur-xl">
-        <div className="mb-8 text-center">
-          <p className="text-sm uppercase tracking-[0.35em] text-sky-300/80">DevFlow</p>
-          <h1 className="mt-4 text-3xl font-semibold text-slate-50">Welcome back</h1>
-          <p className="mt-2 text-sm text-slate-400">Log in to continue your learning journey.</p>
-        </div>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-950">
+      <FloatingOrb delay={0} size={500} color="rgba(56,189,248,0.06)" x="-20%" y="-20%" />
+      <FloatingOrb delay={4} size={400} color="rgba(129,140,248,0.05)" x="70%" y="60%" />
+      <FloatingOrb delay={8} size={350} color="rgba(168,85,247,0.04)" x="80%" y="-10%" />
+      <div className="bg-noise fixed inset-0 pointer-events-none" />
 
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="text-slate-300">Email</span>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-400"
-              required
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-slate-300">Password</span>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-400"
-              required
-            />
-          </label>
-
-          {error && <p className="text-sm text-rose-400">{error}</p>}
-
-          <div className="text-right">
-            <Link to="/forgot-password" className="text-xs text-slate-400 hover:text-sky-300 transition">
-              Forgot password?
-            </Link>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-2xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+      <motion.div
+        className="relative w-full max-w-sm mx-auto px-4"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+      >
+        <div className="glass-strong rounded-2xl p-8 shadow-modal">
+          <motion.div
+            className="flex items-center gap-3 mb-8"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15, duration: 0.4 }}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Welcome back</h1>
+              <p className="text-xs text-surface-400">Log in to continue</p>
+            </div>
+          </motion.div>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          New here?{' '}
-          <Link to="/signup" className="text-sky-300 hover:text-sky-200">
-            Create an account
-          </Link>
-        </p>
-      </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+            >
+              <label className="block text-xs font-medium text-surface-300 mb-1.5">Email</label>
+              <input
+                ref={emailRef}
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="you@example.com"
+                className="input-field"
+                required
+                autoComplete="email"
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.4 }}
+            >
+              <label className="block text-xs font-medium text-surface-300 mb-1.5">Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="Enter your password"
+                  className="input-field pr-10"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition"
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </motion.div>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-2.5"
+              >
+                <p className="text-xs text-rose-400">{error}</p>
+              </motion.div>
+            )}
+
+            <motion.div
+              className="text-right"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+            >
+              <Link to="/forgot-password" className="text-xs text-surface-400 hover:text-brand-400 transition-colors">
+                Forgot password?
+              </Link>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.4 }}
+            >
+              <Button type="submit" disabled={loading} className="w-full" size="lg">
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Signing in...
+                  </span>
+                ) : (
+                  'Sign in'
+                )}
+              </Button>
+            </motion.div>
+          </form>
+
+          <motion.p
+            className="mt-6 text-center text-xs text-surface-500"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+          >
+            New here?{' '}
+            <Link to="/signup" className="text-brand-400 hover:text-brand-300 font-semibold transition-colors">
+              Create an account
+            </Link>
+          </motion.p>
+        </div>
+      </motion.div>
     </div>
   )
 }
