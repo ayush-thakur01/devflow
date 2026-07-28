@@ -1,234 +1,174 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Flame, CheckSquare, Sparkles, MessageSquare, Plus, Clock } from 'lucide-react'
-import useAuthStore from '../store/authStore'
+import { motion } from 'framer-motion'
+import { CheckSquare, Flame, ArrowRight, Clock, TrendingUp, Target, BookOpen, Sparkles, BarChart3 } from 'lucide-react'
 import api from '../services/api'
+import useAuthStore from '../store/authStore'
+import { PremiumCard, PremiumCardIcon, PremiumCardTitle, PremiumCardValue, PremiumCardSub } from '../components/ui/PremiumCard'
+import Card from '../components/ui/Card'
+import Badge from '../components/ui/Badge'
+import Skeleton from '../components/ui/Skeleton'
+import SmartSuggestions from '../components/SmartSuggestions'
+
+const StatCard = ({ icon: Icon, label, value, sub, accent = 'indigo' }: {
+  icon: React.ComponentType<{ size?: number }>
+  label: string
+  value: React.ReactNode
+  sub: string
+  accent?: 'indigo' | 'violet' | 'cyan' | 'brand'
+}) => {
+  return (
+    <PremiumCard accent={accent} padding={false}>
+      <div className="p-5">
+        <PremiumCardIcon color={accent}>
+          <Icon size={16} />
+        </PremiumCardIcon>
+        <PremiumCardSub>{label}</PremiumCardSub>
+        <PremiumCardValue>{value}</PremiumCardValue>
+        <p className="text-[11px] text-surface-500 mt-0.5">{sub}</p>
+      </div>
+    </PremiumCard>
+  )
+}
+
+const quickActions: Array<{
+  name: string
+  desc: string
+  path: string
+  icon: React.ComponentType<{ size?: number }>
+  accent: 'indigo' | 'violet' | 'cyan' | 'brand'
+}> = [
+  { name: 'Create Task', desc: 'Add a new focus item', path: '/tasks', icon: CheckSquare, accent: 'indigo' },
+  { name: 'Take Notes', desc: 'Capture your thoughts', path: '/notes', icon: BookOpen, accent: 'violet' },
+  { name: 'Build Roadmap', desc: 'Generate a study plan', path: '/roadmaps', icon: Target, accent: 'cyan' },
+  { name: 'Ask Mentor', desc: 'Get AI study help', path: '/mentor', icon: Sparkles, accent: 'brand' },
+]
 
 const DashboardPage = () => {
   const user = useAuthStore((state) => state.user)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchDashboardStats = async () => {
-    setLoading(true)
-    try {
-      const response = await api.get('/dashboard/stats')
-      setStats(response.data.data.stats)
-    } catch {
-      // Failed to fetch stats
-    } finally {
-      setLoading(false)
-    }
+  useEffect(() => {
+    api.get('/dashboard/stats')
+      .then((res) => setStats(res.data.data.stats))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
   }
 
-  useEffect(() => {
-    fetchDashboardStats()
-  }, [])
+  const itemVariants = {
+    hidden: { opacity: 0, y: 16 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+  }
 
   if (loading) {
     return (
-      <div className="px-6 py-10 sm:px-8 lg:px-12 max-w-6xl mx-auto text-slate-100 min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Syncing workspace stats…</p>
-        </div>
+      <div className="px-5 py-8 sm:px-8 lg:px-10 max-w-6xl mx-auto">
+        <div className="space-y-3 mb-10"><Skeleton variant="title" className="w-48" /><Skeleton variant="text" className="w-72" /></div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="card" className="h-28" />)}</div>
+        <div className="grid lg:grid-cols-3 gap-6">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="card" className="h-48" />)}</div>
       </div>
     )
   }
 
-  const quickActions = [
-    { name: 'Generate Study Path', path: '/roadmaps', icon: Sparkles, desc: 'Let AI build a structured curriculum' },
-    { name: 'Create Note', path: '/notes', icon: Plus, desc: 'Write down study summaries or notes' },
-    { name: 'Manage Tasks', path: '/tasks', icon: CheckSquare, desc: 'Review daily checklist items' },
-    { name: 'Ask AI Mentor', path: '/mentor', icon: MessageSquare, desc: 'Ask questions or avoid burnout' }
-  ]
-
   return (
-    <div className="px-6 py-10 sm:px-8 lg:px-12 max-w-6xl mx-auto text-slate-100 min-h-screen">
-      <header className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-[0.35em] text-sky-400">DevFlow Workspace</p>
-          <h1 className="mt-3 text-3xl font-extrabold text-white">
-            Welcome back{user ? `, ${user.firstName || user.username}` : ''}
-          </h1>
-          <p className="mt-2 max-w-2xl text-slate-400">
-            Here&apos;s a snapshot of your progress, upcoming focuses, and learning momentum.
-          </p>
+    <motion.div
+      className="px-5 py-8 sm:px-8 lg:px-10 max-w-6xl mx-auto"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Header */}
+      <motion.div variants={itemVariants} className="mb-8">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-400 font-semibold mb-2">
+          <Sparkles size={12} /> Dashboard
         </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">
+          Welcome back{user ? `, ${user.firstName || user.username}` : ''}
+        </h1>
+        <p className="mt-1 text-sm text-surface-400">Here&apos;s your learning overview for today.</p>
+      </motion.div>
 
-        {/* Active Roadmap summary card */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/20 max-w-md w-full relative overflow-hidden backdrop-blur-xl">
-          <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Next Goal / Active Roadmap</span>
-          <h3 className="mt-3 text-base font-extrabold text-white truncate">
-            {stats?.roadmap?.title || 'Launch your first learning roadmap'}
-          </h3>
-          {stats?.roadmap?.id ? (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between items-center text-xs font-semibold text-slate-400">
-                <span>Progress</span>
-                <span className="text-sky-400 font-extrabold">{stats.roadmap.progress}%</span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-900">
-                <div
-                  className="bg-sky-500 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${stats.roadmap.progress}%` }}
-                />
-              </div>
-              <Link
-                to="/roadmaps"
-                className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-sky-300 transition"
-              >
-                Go to learning path <ArrowRight size={14} />
-              </Link>
-            </div>
-          ) : (
-            <div className="mt-4">
-              <Link
-                to="/roadmaps"
-                className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-sky-400"
-              >
-                Build Roadmap <ArrowRight size={14} />
-              </Link>
-            </div>
-          )}
-        </div>
-      </header>
+      {/* Bento Grid */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <StatCard icon={CheckSquare} label="Today's Focus" value={stats?.todayFocus || 'No focus set'} sub="Daily learning target" accent="indigo" />
+        <StatCard icon={Flame} label="Streak" value={`${stats?.streak || 0} days`} sub="Learning consistency" accent="violet" />
+        <StatCard icon={BarChart3} label="Tasks Done" value={`${stats?.tasks?.completed || 0}/${stats?.tasks?.total || 0}`} sub="This period" accent="cyan" />
+        <StatCard icon={Target} label="Path Progress" value={`${stats?.learning?.pathCompletionRate || 0}%`} sub="Overall completion" accent="brand" />
+      </div>
 
-      {/* Primary Stats Grid */}
-      <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-        {/* Today's Focus */}
-        <article className="rounded-3xl border border-slate-850 bg-slate-900/40 p-6 shadow-md hover:bg-slate-900/60 transition-colors backdrop-blur">
-          <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-extrabold flex items-center gap-1.5">
-            <CheckSquare size={12} className="text-sky-400" /> Today&apos;s Focus
-          </p>
-          <h2 className="mt-4 text-xl font-bold text-white leading-snug line-clamp-2">
-            {stats?.todayFocus || 'Create a task to set focus'}
-          </h2>
-          <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-            Continue your daily tasks or check off milestones to keep progress moving.
-          </p>
-        </article>
-
-        {/* Streak */}
-        <article className="rounded-3xl border border-slate-850 bg-slate-900/40 p-6 shadow-md hover:bg-slate-900/60 transition-colors backdrop-blur flex flex-col justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-extrabold flex items-center gap-1.5">
-              <Flame size={12} className="text-amber-500" /> Learning Streak
-            </p>
-            <div className="flex items-baseline gap-2 mt-4">
-              <span className="text-4xl font-black text-white">{stats?.streak || 0}</span>
-              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Days</span>
-            </div>
-          </div>
-          <p className="mt-4 text-xs text-slate-400 leading-relaxed">
-            Build consistency. Ticking off learning milestones daily increments your streak.
-          </p>
-        </article>
-
-        {/* Task Completion Ratio */}
-        <article className="rounded-3xl border border-slate-850 bg-slate-900/40 p-6 shadow-md hover:bg-slate-900/60 transition-colors backdrop-blur flex flex-col justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 font-extrabold flex items-center gap-1.5">
-              <CheckSquare size={12} className="text-emerald-400" /> Focus Targets
-            </p>
-            <div className="flex items-baseline gap-1 mt-4">
-              <span className="text-4xl font-black text-white">
-                {stats?.tasks?.completed || 0}
-              </span>
-              <span className="text-slate-500 font-semibold text-sm">/</span>
-              <span className="text-slate-400 font-bold text-sm">
-                {stats?.tasks?.total || 0}
-              </span>
-            </div>
-          </div>
-          
-          <div className="mt-4 space-y-2">
-            <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${stats?.tasks?.total > 0 ? (stats.tasks.completed / stats.tasks.total) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider text-[9px]">
-              Tasks Completed
-            </p>
-          </div>
-        </article>
-      </section>
-
-      {/* Quick Actions & Recent Activity split */}
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Quick Actions */}
-        <section className="lg:col-span-1 space-y-4">
-          <h2 className="text-lg font-bold text-white">Quick Actions</h2>
-          <div className="grid gap-3">
+      <div className="grid lg:grid-cols-3 gap-5">
+        {/* Quick Actions + AI Suggestions */}
+        <motion.div variants={itemVariants} className="lg:col-span-1 space-y-4">
+          <h2 className="text-sm font-semibold text-surface-200">Quick Actions</h2>
+          <div className="space-y-3">
             {quickActions.map((action, idx) => {
               const Icon = action.icon
               return (
-                <Link
-                  key={idx}
-                  to={action.path}
-                  className="flex items-center gap-4 rounded-2xl border border-slate-850 bg-slate-900/20 p-4 transition hover:bg-slate-900/50 hover:border-slate-700 shadow-sm"
-                >
-                  <div className="h-9 w-9 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-center text-sky-400 flex-shrink-0">
-                    <Icon size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-white">{action.name}</h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5 truncate leading-relaxed">{action.desc}</p>
-                  </div>
-                </Link>
+                <PremiumCard key={idx} accent={action.accent} size="sm" padding={false}>
+                  <Link to={action.path} className="flex items-center gap-3 p-3.5">
+                    <div className="w-8 h-8 rounded-lg bg-premium-800/60 border border-white/[0.04] flex items-center justify-center text-surface-400 group-hover:text-indigo-400 transition-all duration-500 flex-shrink-0">
+                      <Icon size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <PremiumCardTitle className="text-xs">{action.name}</PremiumCardTitle>
+                      <p className="text-[10px] text-surface-500 mt-0.5">{action.desc}</p>
+                    </div>
+                    <ArrowRight size={14} className="text-surface-500 transition-all duration-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 flex-shrink-0" />
+                  </Link>
+                </PremiumCard>
               )
             })}
           </div>
-        </section>
+          <SmartSuggestions />
+        </motion.div>
 
-        {/* Recent Activity */}
-        <section className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-bold text-white">Recent Activity Feed</h2>
-          
-          <div className="rounded-3xl border border-slate-850 bg-slate-900/20 p-5 space-y-4.5">
+        {/* Activity Feed */}
+        <motion.div variants={itemVariants} className="lg:col-span-2 space-y-4">
+          <h2 className="text-sm font-semibold text-surface-200">Recent Activity</h2>
+          <Card>
             {!stats?.recentActivity || stats.recentActivity.length === 0 ? (
-              <p className="text-xs text-slate-500 italic text-center py-6">No recent actions recorded. Set focus targets to build logs.</p>
+              <div className="text-center py-8">
+                <div className="w-10 h-10 rounded-xl bg-surface-800/60 border border-surface-700/40 flex items-center justify-center mx-auto mb-3">
+                  <Clock size={18} className="text-surface-500" />
+                </div>
+                <p className="text-sm text-surface-400 font-medium">No recent activity</p>
+                <p className="text-xs text-surface-500 mt-1">Complete tasks or create notes to see activity here.</p>
+              </div>
             ) : (
-              <div className="relative border-l border-slate-850 pl-5.5 ml-2.5 space-y-5 py-1">
+              <div className="space-y-0">
                 {stats.recentActivity.map((activity, idx) => {
                   const isTask = activity.type === 'task'
                   return (
-                    <div key={idx} className="relative group">
-                      {/* Timeline dot */}
-                      <span className={`absolute -left-8.5 top-1 h-3.5 w-3.5 rounded-full border border-slate-950 flex items-center justify-center ${
-                        isTask ? 'bg-sky-500 shadow-md shadow-sky-500/10' : 'bg-indigo-500 shadow-md shadow-indigo-500/10'
-                      }`} />
-                      
-                      <div className="min-w-0">
-                        <span className="text-xs font-semibold text-white block leading-snug group-hover:text-sky-300 transition">
-                          {activity.title}
-                        </span>
-                        <div className="flex items-center gap-2 mt-1.5 text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-                          <span className={`px-1.5 py-0.5 rounded-md ${
-                            isTask ? 'bg-sky-500/10 text-sky-400 border border-sky-500/15' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/15'
-                          }`}>
-                            {activity.type}
-                          </span>
-                          <span>&bull;</span>
-                          <span className="text-slate-500 flex items-center gap-0.5">
-                            <Clock size={9} />
+                    <motion.div
+                      key={idx}
+                      className={`flex items-start gap-3 py-3.5 ${idx !== stats.recentActivity.length - 1 ? 'border-b border-surface-800/30' : ''}`}
+                      variants={itemVariants}
+                    >
+                      <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${isTask ? 'bg-brand-400' : 'bg-purple-400'}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-surface-200">{activity.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge color={isTask ? 'brand' : 'purple'}>{activity.type}</Badge>
+                          <span className="text-[10px] text-surface-500">
                             {new Date(activity.timestamp).toLocaleDateString()} {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )
                 })}
               </div>
             )}
-          </div>
-        </section>
+          </Card>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
