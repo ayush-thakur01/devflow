@@ -27,7 +27,7 @@ const ForgotPasswordPage = () => {
 
   if (sent) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-950">
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0B0F19]">
         <div className="bg-noise fixed inset-0 pointer-events-none" />
         <motion.div
           className="relative w-full max-w-sm mx-auto px-4"
@@ -57,7 +57,7 @@ const ForgotPasswordPage = () => {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-950">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0B0F19]">
       <div className="bg-noise fixed inset-0 pointer-events-none" />
       <motion.div
         className="relative w-full max-w-sm mx-auto px-4"
