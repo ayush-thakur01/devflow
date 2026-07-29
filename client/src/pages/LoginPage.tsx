@@ -81,7 +81,7 @@ const LoginPage = () => {
               <Sparkles size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Welcome back</h1>
+              <h1 className="text-lg font-bold text-white">hey,developer</h1>
               <p className="text-xs text-surface-400">Log in to continue</p>
             </div>
           </motion.div>

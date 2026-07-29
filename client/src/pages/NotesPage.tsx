@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Plus, Pin, Heart, Trash2, Eye, Edit2, Save, Tag, FileText, Sparkles, X } from 'lucide-react'
 import api from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer'
+import useOptimisticUpdate from '../hooks/useOptimisticUpdate'
+import Button from '../components/ui/Button'
 
 const NotesPage = () => {
   const [notes, setNotes] = useState([])
@@ -9,394 +12,243 @@ const NotesPage = () => {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
-  
-  // Editor mode: 'edit' or 'preview'
+  const [selectedTag, setSelectedTag] = useState('All')
   const [editorMode, setEditorMode] = useState('edit')
+  const [summarizing, setSummarizing] = useState(false)
+  const [summary, setSummary] = useState('')
+
+  const { optimisticAdd, optimisticDelete, optimisticReplace } = useOptimisticUpdate(setNotes)
 
   const fetchNotes = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/notes')
-      const fetchedNotes = response.data.data.notes || []
-      setNotes(fetchedNotes)
-      if (fetchedNotes.length > 0 && !activeNote) {
-        setActiveNote(fetchedNotes[0])
-      }
-    } catch {
-      // Failed to fetch notes
-    } finally {
-      setLoading(false)
-    }
+      const res = await api.get('/notes')
+      const fetched = res.data.data.notes || []
+      setNotes(fetched)
+      if (fetched.length > 0 && !activeNote) setActiveNote(fetched[0])
+    } catch {}
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    fetchNotes()
-  }, [])
+  useEffect(() => { fetchNotes() }, [])
 
   const handleCreateNote = async () => {
     try {
-      const response = await api.post('/notes', {
-        title: 'Untitled Note',
-        content: '',
-        category: 'General',
-        tags: [],
-      })
-      const newNote = response.data.data.note
-      setNotes(prev => [newNote, ...prev])
-      setActiveNote(newNote)
+      const res = await api.post('/notes', { title: 'Untitled Note', content: '', category: 'General', tags: [] })
+      const note = res.data.data.note
+      optimisticAdd(note)
+      setActiveNote(note)
       setEditorMode('edit')
-    } catch {
-      // Failed to create note
-    }
+    } catch {}
   }
 
   const handleSaveNote = async () => {
     if (!activeNote) return
     try {
-      const response = await api.put(`/notes/${activeNote._id}`, {
-        title: activeNote.title,
-        content: activeNote.content,
-        category: activeNote.category,
-        tags: activeNote.tags,
-      })
-      const updatedNote = response.data.data.note
-      setNotes(prev => prev.map(n => (n._id === updatedNote._id ? updatedNote : n)))
-      setActiveNote(updatedNote)
-    } catch {
-      // Failed to save note
-    }
+      const res = await api.put(`/notes/${activeNote._id}`, { title: activeNote.title, content: activeNote.content, category: activeNote.category, tags: activeNote.tags })
+      const updated = res.data.data.note
+      optimisticReplace(updated._id, updated)
+      setActiveNote(updated)
+    } catch {}
   }
 
   const handleDeleteNote = async (id) => {
-    try {
-      await api.delete(`/notes/${id}`)
-      const remainingNotes = notes.filter(n => n._id !== id)
-      setNotes(remainingNotes)
-      if (activeNote?._id === id) {
-        setActiveNote(remainingNotes.length > 0 ? remainingNotes[0] : null)
-      }
-    } catch {
-      // Failed to delete note
-    }
+    optimisticDelete(id)
+    const remaining = notes.filter(n => n._id !== id)
+    if (activeNote?._id === id) setActiveNote(remaining.length > 0 ? remaining[0] : null)
+    try { await api.delete(`/notes/${id}`) } catch { fetchNotes() }
   }
 
   const handleTogglePin = async (note) => {
-    const updatedPinned = !note.pinned
-    // Optimistic UI update
-    setNotes(prev =>
-      prev
-        .map(n => (n._id === note._id ? { ...n, pinned: updatedPinned } : n))
-        .sort((a, b) => b.pinned - a.pinned)
-    )
-    if (activeNote?._id === note._id) {
-      setActiveNote(prev => ({ ...prev, pinned: updatedPinned }))
-    }
-    try {
-      await api.put(`/notes/${note._id}`, { pinned: updatedPinned })
-    } catch (err) {
-      fetchNotes()
-    }
+    const updated = !note.pinned
+    optimisticReplace(note._id, { ...note, pinned: updated })
+    if (activeNote?._id === note._id) setActiveNote(prev => ({ ...prev, pinned: updated }))
+    try { await api.put(`/notes/${note._id}`, { pinned: updated }) } catch { fetchNotes() }
   }
 
   const handleToggleFavorite = async (note) => {
-    const updatedFav = !note.favorite
-    // Optimistic UI update
-    setNotes(prev => prev.map(n => (n._id === note._id ? { ...n, favorite: updatedFav } : n)))
-    if (activeNote?._id === note._id) {
-      setActiveNote(prev => ({ ...prev, favorite: updatedFav }))
-    }
-    try {
-      await api.put(`/notes/${note._id}`, { favorite: updatedFav })
-    } catch (err) {
-      fetchNotes()
-    }
+    const updated = !note.favorite
+    optimisticReplace(note._id, { ...note, favorite: updated })
+    if (activeNote?._id === note._id) setActiveNote(prev => ({ ...prev, favorite: updated }))
+    try { await api.put(`/notes/${note._id}`, { favorite: updated }) } catch { fetchNotes() }
   }
-
-  const handleNoteChange = (field, value) => {
-    setActiveNote(prev => ({ ...prev, [field]: value }))
-  }
-
-  const [summarizing, setSummarizing] = useState(false)
-  const [summary, setSummary] = useState('')
 
   const handleSummarize = async () => {
     if (!activeNote?.content?.trim()) return
     setSummarizing(true)
     setSummary('')
-    try {
-      const res = await api.post('/ai/summarize-note', { content: activeNote.content })
-      setSummary(res.data.data.summary)
-    } catch {
-      // Failed to generate summary
-    } finally {
-      setSummarizing(false)
-    }
+    try { const res = await api.post('/ai/summarize-note', { content: activeNote.content }); setSummary(res.data.data.summary) } catch {}
+    finally { setSummarizing(false) }
   }
 
-  // Categories list
   const categories = ['All', ...new Set(notes.map(n => n.category || 'General'))]
-
-  // Filter notes
-  const filteredNotes = notes.filter(note => {
-    const matchesSearch =
-      note.title.toLowerCase().includes(search.toLowerCase()) ||
-      note.content.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = selectedCategory === 'All' || note.category === selectedCategory
-    return matchesSearch && matchesCategory
+  const allTags = [...new Set(notes.flatMap(n => n.tags || []))].sort()
+  const filteredNotes = notes.filter(n => {
+    const matchesSearch = n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory = selectedCategory === 'All' || n.category === selectedCategory
+    const matchesTag = selectedTag === 'All' || (n.tags || []).includes(selectedTag)
+    return matchesSearch && matchesCategory && matchesTag
   })
 
   return (
-    <div className="flex h-[calc(100vh-60px)] md:h-screen text-slate-200">
-      {/* Sidebar - List of notes */}
-      <div className="w-80 border-r border-slate-900 bg-slate-950 flex flex-col h-full flex-shrink-0">
-        <div className="p-5 border-b border-slate-900/60">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <FileText size={20} className="text-sky-400" /> Notes
+    <div className="flex h-[calc(100vh-60px)] md:h-screen text-surface-200">
+      <div className="w-72 border-r border-surface-800/40 bg-surface-950/90 flex flex-col h-full flex-shrink-0">
+        <div className="p-4 border-b border-surface-800/30">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+              <FileText size={16} className="text-brand-400" /> Notes
             </h1>
-            <button
-              onClick={handleCreateNote}
-              className="p-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 transition shadow-lg shadow-sky-500/10"
-              title="New Note"
-            >
-              <Plus size={16} />
-            </button>
+            <Button onClick={handleCreateNote} size="xs" className="!p-1.5 !rounded-lg"><Plus size={14} /></Button>
           </div>
-
-          {/* Search bar */}
           <div className="relative">
-            <Search className="absolute left-3.5 top-3 text-slate-500" size={16} />
-            <input
-              type="text"
-              placeholder="Search notes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 pl-10 pr-4 py-2.5 text-xs text-slate-200 outline-none transition focus:border-sky-500"
+            <Search className="absolute left-2.5 top-2.5 text-surface-500" size={13} />
+            <input type="text" placeholder="Search notes..." value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-surface-800/50 bg-surface-900/50 pl-8 pr-3 py-2 text-xs text-surface-200 outline-none transition focus:border-brand-400/30 focus:bg-surface-900"
             />
           </div>
         </div>
 
-        {/* Category Pill Filters */}
-        <div className="px-5 py-3 flex gap-1.5 overflow-x-auto whitespace-nowrap border-b border-slate-900/40 scrollbar-none flex-shrink-0">
+        <div className="px-4 py-2.5 flex gap-1.5 overflow-x-auto whitespace-nowrap border-b border-surface-800/30 scrollbar-custom flex-shrink-0">
           {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition ${
-                selectedCategory === cat
-                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                  : 'bg-slate-900/40 text-slate-400 border border-transparent hover:text-slate-200'
+            <button key={cat} onClick={() => setSelectedCategory(cat)}
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition flex-shrink-0 ${
+                selectedCategory === cat ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' : 'text-surface-500 border border-transparent hover:text-surface-300'
               }`}
-            >
-              {cat}
-            </button>
+            >{cat}</button>
           ))}
         </div>
 
-        {/* Notes List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {loading ? (
-            <div className="space-y-2">
-              {[1, 2, 3, 4].map(n => (
-                <div key={n} className="h-16 rounded-xl bg-slate-900/40 animate-pulse border border-slate-900/40" />
-              ))}
-            </div>
-          ) : filteredNotes.length === 0 ? (
-            <p className="text-center text-xs text-slate-500 mt-10">No notes found.</p>
-          ) : (
-            filteredNotes.map((note) => (
-              <button
-                key={note._id}
-                onClick={() => {
-                  setActiveNote(note)
-                  setEditorMode('edit')
-                }}
-                className={`w-full text-left rounded-xl p-3.5 transition-all border ${
-                  activeNote?._id === note._id
-                    ? 'bg-slate-900/80 border-slate-800 text-white'
-                    : 'bg-transparent border-transparent hover:bg-slate-900/30 text-slate-300'
+        {allTags.length > 0 && (
+          <div className="px-4 py-2 flex gap-1.5 overflow-x-auto whitespace-nowrap border-b border-surface-800/30 scrollbar-custom flex-shrink-0">
+            <button onClick={() => setSelectedTag('All')}
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition flex-shrink-0 ${
+                selectedTag === 'All' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-surface-500 border border-transparent hover:text-surface-300'
+              }`}
+            >All Tags</button>
+            {allTags.map((tag) => (
+              <button key={tag} onClick={() => setSelectedTag(selectedTag === tag ? 'All' : tag)}
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition flex-shrink-0 ${
+                  selectedTag === tag ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-surface-500 border border-transparent hover:text-surface-300'
                 }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-semibold text-sm truncate flex-1 leading-snug">{note.title}</span>
-                  {note.pinned && <Pin size={12} className="text-sky-400 flex-shrink-0 fill-sky-400/25 rotate-45" />}
-                </div>
-                <p className="text-xs text-slate-500 mt-1 truncate">
-                  {note.content ? note.content.substring(0, 60) : 'Empty note'}
-                </p>
-                <div className="flex items-center justify-between mt-3 text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-                  <span>{note.category || 'General'}</span>
-                  <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </button>
-            ))
+              >#{tag}</button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-custom">
+          {loading ? (
+            <div className="space-y-1.5">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-lg bg-surface-800/30 animate-pulse border border-surface-800/40" />)}</div>
+          ) : filteredNotes.length === 0 ? (
+            <p className="text-center text-xs text-surface-500 mt-8">No notes found.</p>
+          ) : (
+            <AnimatePresence>
+              {filteredNotes.map((note) => (
+                <motion.button key={note._id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                  onClick={() => { setActiveNote(note); setEditorMode('edit') }}
+                  className={`w-full text-left rounded-lg p-3 transition-all border ${
+                    activeNote?._id === note._id ? 'bg-surface-800/60 border-surface-700/50 text-white' : 'bg-transparent border-transparent text-surface-400 premium-hover-light'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1.5">
+                    <span className="font-medium text-xs truncate flex-1">{note.title}</span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {note.pinned && <Pin size={10} className="text-brand-400" />}
+                      {note.favorite && <Heart size={10} className="text-rose-400 fill-rose-400/30" />}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-surface-500 mt-1 truncate">{note.content ? note.content.substring(0, 50) : 'Empty note'}</p>
+                  <div className="flex items-center justify-between mt-1.5 text-[9px] text-surface-500">
+                    <span>{note.category || 'General'}</span>
+                    <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </motion.button>
+              ))}
+            </AnimatePresence>
           )}
         </div>
       </div>
 
-      {/* Editor / Viewer Pane */}
-      <div className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden">
+      <motion.div className="flex-1 bg-surface-950 flex flex-col h-full overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
         {activeNote ? (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Note Editor Header */}
-            <div className="px-6 py-4.5 border-b border-slate-900/80 bg-slate-950/40 backdrop-blur flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={activeNote.title}
-                  onChange={(e) => handleNoteChange('title', e.target.value)}
-                  onBlur={handleSaveNote}
-                  placeholder="Note Title"
-                  className="bg-transparent border-b border-transparent hover:border-slate-800 focus:border-sky-500 text-lg font-bold text-white outline-none transition py-0.5 px-1 flex-1 min-w-0"
+            <div className="px-5 py-3 border-b border-surface-800/30 bg-surface-950/80 backdrop-blur flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <input type="text" value={activeNote.title} onChange={(e) => setActiveNote(prev => ({ ...prev, title: e.target.value }))}
+                  onBlur={handleSaveNote} placeholder="Note Title"
+                  className="bg-transparent border-b border-transparent hover:border-surface-800 focus:border-brand-400/40 text-sm font-semibold text-white outline-none transition py-0.5 px-1 flex-1 min-w-0"
                 />
-                
-                {/* Category tag editing */}
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 border border-slate-850">
-                  <Tag size={12} className="text-slate-500" />
-                  <input
-                    type="text"
-                    value={activeNote.category || ''}
-                    onChange={(e) => handleNoteChange('category', e.target.value)}
-                    onBlur={handleSaveNote}
-                    placeholder="General"
-                    className="bg-transparent text-[10px] font-bold uppercase tracking-wider text-slate-300 outline-none w-16"
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-800/50 border border-surface-700/30">
+                  <Tag size={10} className="text-surface-500" />
+                  <input type="text" value={activeNote.category || ''} onChange={(e) => setActiveNote(prev => ({ ...prev, category: e.target.value }))}
+                    onBlur={handleSaveNote} placeholder="General" className="bg-transparent text-[10px] font-semibold uppercase tracking-wider text-surface-400 outline-none w-14"
                   />
                 </div>
               </div>
-
-              {/* Action Toolbar */}
-              <div className="flex items-center gap-2 ml-4">
-                <button
-                  onClick={() => handleTogglePin(activeNote)}
-                  className={`p-2 rounded-xl transition border ${
-                    activeNote.pinned
-                      ? 'bg-sky-500/10 border-sky-500/20 text-sky-400'
-                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Pin Note"
-                >
-                  <Pin size={15} className="rotate-45" />
-                </button>
-
-                <button
-                  onClick={() => handleToggleFavorite(activeNote)}
-                  className={`p-2 rounded-xl transition border ${
-                    activeNote.favorite
-                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Favorite Note"
-                >
-                  <Heart size={15} className={activeNote.favorite ? 'fill-rose-500/20' : ''} />
-                </button>
-
-                <button
-                  onClick={handleSummarize}
-                  disabled={summarizing || !activeNote?.content?.trim()}
-                  className={`p-2 rounded-xl transition border ${
-                    summarizing
-                      ? 'border-sky-500/20 bg-sky-500/10 text-sky-400 animate-pulse'
-                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-sky-400 hover:border-sky-500/20'
-                  }`}
-                  title="Summarize Note"
-                >
-                  <Sparkles size={15} />
-                </button>
-
-                <div className="h-6 w-px bg-slate-850 mx-1" />
-
-                {/* Edit/Preview Toggle */}
-                <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-0.5">
-                  <button
-                    onClick={() => setEditorMode('edit')}
-                    className={`p-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition ${
-                      editorMode === 'edit'
-                        ? 'bg-slate-850 text-sky-400'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                  <button
-                    onClick={() => setEditorMode('preview')}
-                    className={`p-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition ${
-                      editorMode === 'preview'
-                        ? 'bg-slate-850 text-sky-400'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Eye size={13} />
-                  </button>
+              <div className="flex items-center gap-1 ml-3">
+                {[
+                  { icon: Pin, active: activeNote.pinned, color: 'brand', action: () => handleTogglePin(activeNote), title: 'Pin' },
+                  { icon: Heart, active: activeNote.favorite, color: 'rose', action: () => handleToggleFavorite(activeNote), title: 'Favorite' },
+                  { icon: Sparkles, active: summarizing, color: 'brand', action: handleSummarize, title: 'Summarize', disabled: summarizing || !activeNote?.content?.trim() },
+                ].map((btn, i) => (
+                  <button key={i} onClick={btn.action} disabled={btn.disabled} title={btn.title}
+                    className={`p-1.5 rounded-lg transition-all border ${
+                      btn.active ? `bg-${btn.color}-500/10 border-${btn.color}-500/20 text-${btn.color}-400` : 'border-transparent text-surface-400 hover:text-surface-200 hover:bg-surface-800/40'
+                    } ${btn.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  ><btn.icon size={13} /></button>
+                ))}
+                <div className="w-px h-5 bg-surface-800/50 mx-1" />
+                <div className="flex rounded-lg bg-surface-800/50 border border-surface-700/30 p-0.5">
+                  {['edit', 'preview'].map(mode => (
+                    <button key={mode} onClick={() => setEditorMode(mode)}
+                      className={`p-1.5 rounded text-[10px] font-semibold uppercase tracking-wider transition ${
+                        editorMode === mode ? 'bg-surface-700/60 text-brand-400' : 'text-surface-500 hover:text-surface-300'
+                      }`}
+                    >{mode === 'edit' ? <Edit2 size={12} /> : <Eye size={12} />}</button>
+                  ))}
                 </div>
-
-                <button
-                  onClick={handleSaveNote}
-                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition"
-                  title="Save changes"
-                >
-                  <Save size={15} />
-                </button>
-
-                <button
-                  onClick={() => handleDeleteNote(activeNote._id)}
-                  className="p-2 rounded-xl border border-slate-800/80 hover:border-rose-500/20 bg-slate-900/30 text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 transition"
-                  title="Delete Note"
-                >
-                  <Trash2 size={15} />
-                </button>
+                <button onClick={handleSaveNote} className="p-1.5 rounded-lg border border-transparent text-surface-400 hover:text-surface-200 hover:bg-surface-800/40 transition" title="Save"><Save size={13} /></button>
+                <button onClick={() => handleDeleteNote(activeNote._id)} className="p-1.5 rounded-lg border border-transparent text-surface-400 hover:text-rose-400 hover:bg-rose-500/5 transition" title="Delete"><Trash2 size={13} /></button>
               </div>
             </div>
 
-            {/* Summary Banner */}
-            {summary && (
-              <div className="px-6 py-3 mx-6 mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles size={16} className="text-sky-400 mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-slate-300 leading-relaxed markdown-content">
-                    <MarkdownRenderer content={summary} />
+            <AnimatePresence>
+              {summary && (
+                <motion.div initial={{ opacity: 0, y: -8, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -8, height: 0 }}
+                  className="px-5 py-3 mx-5 mt-3 rounded-xl border border-brand-500/20 bg-brand-500/5"
+                >
+                  <div className="flex items-start gap-2">
+                    <Sparkles size={14} className="text-brand-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-surface-300 leading-relaxed flex-1"><MarkdownRenderer content={summary} /></div>
+                    <button onClick={() => setSummary('')} className="p-0.5 text-surface-500 hover:text-surface-300 flex-shrink-0"><X size={12} /></button>
                   </div>
-                  <button onClick={() => setSummary('')} className="p-0.5 text-slate-500 hover:text-slate-300 flex-shrink-0">
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Note Content Panel */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-8">
+            <div className="flex-1 overflow-y-auto p-5 md:p-6 scrollbar-custom">
               {editorMode === 'edit' ? (
-                <textarea
-                  value={activeNote.content}
-                  onChange={(e) => handleNoteChange('content', e.target.value)}
-                  onBlur={handleSaveNote}
-                  placeholder="Start typing in markdown..."
-                  className="w-full h-full bg-transparent text-slate-100 placeholder-slate-650 outline-none resize-none font-mono text-sm leading-relaxed border-none focus:ring-0"
+                <textarea value={activeNote.content} onChange={(e) => setActiveNote(prev => ({ ...prev, content: e.target.value }))}
+                  onBlur={handleSaveNote} placeholder="Start typing in markdown..."
+                  className="w-full h-full bg-transparent text-surface-200 placeholder-surface-500/60 outline-none resize-none font-mono text-sm leading-relaxed border-none focus:ring-0"
                 />
               ) : (
-                <div className="prose-wrapper min-h-full">
-                  <MarkdownRenderer content={activeNote.content} />
-                </div>
+                <div className="prose prose-invert prose-sm max-w-none"><MarkdownRenderer content={activeNote.content} /></div>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-950">
-            <div className="h-14 w-14 rounded-3xl border border-slate-800 bg-slate-900/40 flex items-center justify-center mb-6">
-              <FileText size={24} className="text-slate-500" />
+          <div className="flex-1 flex items-center justify-center text-center p-8">
+            <div>
+              <div className="w-12 h-12 rounded-2xl border border-surface-800 bg-surface-900/40 flex items-center justify-center mx-auto mb-4">
+                <FileText size={22} className="text-surface-500" />
+              </div>
+              <h2 className="text-base font-semibold text-white">No note selected</h2>
+              <p className="text-xs text-surface-500 mt-1 max-w-xs">Create a new note or select one from the sidebar.</p>
+              <Button onClick={handleCreateNote} className="mt-5"><Plus size={14} /> Create Note</Button>
             </div>
-            <h2 className="text-lg font-bold text-white">No note selected</h2>
-            <p className="text-xs text-slate-500 max-w-sm mt-2 leading-relaxed">
-              Create a new note or select an existing one from the sidebar to start writing study guides or project details.
-            </p>
-            <button
-              onClick={handleCreateNote}
-              className="mt-6 flex items-center gap-2 rounded-2xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
-            >
-              <Plus size={16} /> Create Note
-            </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }

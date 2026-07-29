@@ -1,228 +1,207 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Sparkles, MessageSquare, AlertCircle } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Send, MessageSquare, AlertCircle, Bot, User, Sparkles, Code2, HelpCircle } from 'lucide-react'
 import api, { streamFromApi } from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import QuizModal from '../components/QuizModal'
+import CodeReviewModal from '../components/CodeReviewModal'
 
 const MentorPage = () => {
   const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: "Hello! I am your DevFlow AI Mentor. I'm aware of your learning paths and study goals. How can I help you accelerate your learning today?",
-      timestamp: new Date(),
-    },
+    { role: 'assistant', content: "Hi! I'm your DevFlow AI Mentor. I can see your learning paths and study goals. Ask me anything!", timestamp: new Date() },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [streamingMessage, setStreamingMessage] = useState('')
   const [activeRoadmap, setActiveRoadmap] = useState(null)
-
+  const [quizOpen, setQuizOpen] = useState(false)
+  const [codeReviewOpen, setCodeReviewOpen] = useState(false)
   const chatEndRef = useRef(null)
-
-  const fetchActiveRoadmap = async () => {
-    try {
-      const response = await api.get('/learning-paths')
-      const paths = response.data.data.learningPaths || []
-      if (paths.length > 0) {
-        const active = paths.find(p => p.status === 'in-progress') || paths[0]
-        setActiveRoadmap(active)
-      }
-    } catch (err) {
-      // Ignore context loading failure
-    }
-  }
+  const inputRef = useRef(null)
 
   useEffect(() => {
-    fetchActiveRoadmap()
+    const fetch = async () => {
+      try {
+        const res = await api.get('/learning-paths')
+        const paths = res.data.data.learningPaths || []
+        if (paths.length > 0) setActiveRoadmap(paths.find(p => p.status === 'in-progress') || paths[0])
+      } catch {}
+    }
+    fetch()
   }, [])
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingMessage])
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streamingMessage])
+  useEffect(() => { inputRef.current?.focus() }, [])
 
   const handleSendMessage = async (textToSend) => {
     const text = textToSend || input
     if (!text.trim()) return
-
     if (!textToSend) setInput('')
-
     const userMsg = { role: 'user', content: text, timestamp: new Date() }
     setMessages(prev => [...prev, userMsg])
-
     setLoading(true)
     setError('')
     setStreamingMessage('')
-
-    const history = messages.slice(-6).map(m => ({
-      role: m.role,
-      content: m.content,
-    }))
-
-    const body = {
-      question: text,
-      history,
-      roadmapId: activeRoadmap?._id || null,
-    }
-
+    const history = messages.slice(-6).map(m => ({ role: m.role, content: m.content }))
     let assistantContent = ''
-
-    streamFromApi(
-      '/ai/mentor/stream',
-      body,
-      (chunk) => {
-        assistantContent += chunk
-        setStreamingMessage(assistantContent)
-      },
-      () => {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: assistantContent, timestamp: new Date() },
-        ])
-        setStreamingMessage('')
-        setLoading(false)
-      },
-      (errMsg) => {
-        setError(errMsg || 'AI Mentor was unable to respond. Please try again.')
-        setStreamingMessage('')
-        setLoading(false)
-      }
+    streamFromApi('/ai/mentor/stream', { question: text, history, roadmapId: activeRoadmap?._id || null },
+      (chunk) => { assistantContent += chunk; setStreamingMessage(assistantContent) },
+      () => { setMessages(prev => [...prev, { role: 'assistant', content: assistantContent, timestamp: new Date() }]); setStreamingMessage(''); setLoading(false) },
+      (errMsg) => { setError(errMsg || 'Failed to get response.'); setStreamingMessage(''); setLoading(false) }
     )
   }
 
   const quickPrompts = [
-    { label: ' How to avoid burnout?', query: 'I am feeling overwhelmed with study. What are strategies to avoid burnout?' },
-    { label: ' Recommend a project idea', query: 'Can you recommend a starter project idea based on my current learning goals?' },
-    { label: ' Create study schedule', query: 'Help me plan a weekly study schedule to optimize my learning efficiency.' },
+    { label: 'Avoid burnout', query: 'I feel overwhelmed. Strategies to avoid burnout?' },
+    { label: 'Project ideas', query: 'Recommend a starter project based on my goals.' },
+    { label: 'Study schedule', query: 'Help me plan a weekly study schedule.' },
   ]
 
   return (
-    <div className="flex h-[calc(100vh-60px)] md:h-screen text-slate-200 overflow-hidden">
-      <div className="hidden lg:flex w-72 border-r border-slate-900 bg-slate-950 flex-col p-6 space-y-6 flex-shrink-0 overflow-y-auto">
-        <div className="flex items-center gap-2.5 text-sky-400">
-          <Sparkles size={20} className="animate-pulse" />
-          <h2 className="text-base font-bold text-white">AI Mentor</h2>
+    <div className="flex h-[calc(100vh-60px)] md:h-screen text-surface-200 overflow-hidden">
+      <div className="hidden lg:flex w-64 border-r border-surface-800/40 bg-surface-950/80 flex-col p-5 space-y-5 flex-shrink-0 overflow-y-auto">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-400 to-indigo-500 flex items-center justify-center">
+            <Bot size={16} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-white">AI Mentor</h2>
+            <p className="text-[9px] uppercase tracking-wider text-brand-400 font-semibold">Goal-aware</p>
+          </div>
         </div>
 
         {activeRoadmap ? (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-2">
-            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-extrabold block">Roadmap Context</span>
-            <span className="text-xs font-bold text-white block leading-snug truncate">{activeRoadmap.title}</span>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-2 border-t border-slate-850">
-              <span>Goal Progress:</span>
-              <span className="font-extrabold text-sky-400">{activeRoadmap.progress}%</span>
+          <Card padding={false} className="premium-hover">
+            <div className="p-3.5 space-y-2">
+              <span className="text-[9px] uppercase tracking-wider text-surface-500 font-semibold">Context</span>
+              <p className="text-xs font-medium text-surface-200 truncate">{activeRoadmap.title}</p>
+              <div className="flex justify-between text-[10px] text-surface-400 pt-2 border-t border-surface-800/40">
+                <span>Progress</span>
+                <span className="font-semibold text-brand-400">{activeRoadmap.progress}%</span>
+              </div>
             </div>
-          </div>
+          </Card>
         ) : (
-          <div className="rounded-2xl border border-slate-850/60 bg-slate-900/10 p-4 text-center">
-            <p className="text-xs text-slate-500">No active roadmap context yet. Build one in Roadmaps to customize answers!</p>
-          </div>
+          <Card padding={false} className="premium-hover">
+            <div className="p-3.5 text-center">
+              <p className="text-xs text-surface-500">No active roadmap. Build one in Roadmaps to get personalized answers!</p>
+            </div>
+          </Card>
         )}
 
-        <div className="border-t border-slate-900 pt-5 space-y-3.5">
-          <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Quick Prompts</span>
-          <div className="space-y-2">
+        <div className="border-t border-surface-800/30 pt-4 space-y-3">
+          <span className="text-[9px] uppercase tracking-wider text-surface-500 font-semibold">Quick Prompts</span>
+          <div className="space-y-1.5">
             {quickPrompts.map((p, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSendMessage(p.query)}
-                disabled={loading}
-                className="w-full text-left rounded-xl p-3 text-xs bg-slate-900 border border-slate-850 hover:border-slate-700 text-slate-300 hover:text-white transition-all disabled:opacity-50"
+              <motion.button key={idx} whileHover={{ x: 3 }} onClick={() => handleSendMessage(p.query)} disabled={loading}
+                className="premium-hover-light w-full text-left rounded-lg px-3 py-2 text-xs bg-surface-800/30 border border-surface-800/40 hover:border-brand-400/20 text-surface-400 hover:text-surface-200 transition-all disabled:opacity-50"
               >
                 {p.label}
-              </button>
+              </motion.button>
             ))}
+          </div>
+        </div>
+
+        <div className="border-t border-surface-800/30 pt-4 space-y-3">
+          <span className="text-[9px] uppercase tracking-wider text-surface-500 font-semibold">AI Tools</span>
+          <div className="space-y-1.5">
+            <motion.button whileHover={{ x: 3 }} onClick={() => setQuizOpen(true)}
+              className="premium-hover-light w-full text-left rounded-lg px-3 py-2 text-xs bg-surface-800/30 border border-surface-800/40 hover:border-brand-400/20 text-surface-400 hover:text-surface-200 transition-all flex items-center gap-2"
+            >
+              <HelpCircle size={13} /> Generate Quiz
+            </motion.button>
+            <motion.button whileHover={{ x: 3 }} onClick={() => setCodeReviewOpen(true)}
+              className="premium-hover-light w-full text-left rounded-lg px-3 py-2 text-xs bg-surface-800/30 border border-surface-800/40 hover:border-brand-400/20 text-surface-400 hover:text-surface-200 transition-all flex items-center gap-2"
+            >
+              <Code2 size={13} /> Code Review
+            </motion.button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden">
-        <header className="px-6 py-4.5 border-b border-slate-900/80 bg-slate-950/40 backdrop-blur flex items-center justify-between flex-shrink-0">
+      <div className="flex-1 bg-surface-950 flex flex-col h-full overflow-hidden">
+        <header className="px-6 py-3 border-b border-surface-800/30 bg-surface-950/60 backdrop-blur flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-              <MessageSquare size={18} />
+            <div className="w-8 h-8 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+              <MessageSquare size={16} className="text-brand-400" />
             </div>
             <div>
-              <h1 className="font-bold text-base text-white">Mentorship Chat</h1>
-              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Goal &amp; Progress Aware AI</p>
+              <h1 className="text-sm font-semibold text-white">Mentorship Chat</h1>
+              <p className="text-[9px] uppercase tracking-wider text-surface-500 font-semibold">Goal & Progress Aware AI</p>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-          {messages.map((m, idx) => {
-            const isAI = m.role === 'assistant'
-            return (
-              <div key={idx} className={`flex ${isAI ? 'justify-start' : 'justify-end'}`}>
-                <div
-                  className={`max-w-2xl rounded-3xl p-5 border text-sm leading-relaxed ${
-                    isAI
-                      ? 'bg-slate-900/40 border-slate-900 text-slate-200'
-                      : 'bg-sky-500/10 border-sky-500/20 text-white'
-                  }`}
-                >
-                  {isAI ? (
-                    <MarkdownRenderer content={m.content} />
-                  ) : (
-                    <p className="whitespace-pre-wrap">{m.content}</p>
-                  )}
+        <div className="flex-1 overflow-y-auto p-5 md:p-6 space-y-4 scrollbar-custom">
+          <AnimatePresence initial={false}>
+            {messages.map((m, idx) => {
+              const isAI = m.role === 'assistant'
+              return (
+                <motion.div key={idx} initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex ${isAI ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`flex items-start gap-3 max-w-xl ${isAI ? '' : 'flex-row-reverse'}`}>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isAI ? 'bg-brand-500/10 border border-brand-500/20' : 'bg-surface-800/60 border border-surface-700/40'}`}>
+                      {isAI ? <Bot size={14} className="text-brand-400" /> : <User size={14} className="text-surface-400" />}
+                    </div>
+                    <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${isAI ? 'bg-surface-900/60 border border-surface-800/40 text-surface-200' : 'bg-brand-500/10 border border-brand-500/20 text-white'}`}>
+                      {isAI ? <MarkdownRenderer content={m.content} /> : <p className="text-sm">{m.content}</p>}
+                    </div>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {streamingMessage && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                <div className="flex items-start gap-3 max-w-xl">
+                  <div className="w-7 h-7 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
+                    <Bot size={14} className="text-brand-400" />
+                  </div>
+                  <div className="rounded-xl px-4 py-3 bg-surface-900/60 border border-surface-800/40 text-sm text-surface-200">
+                    <MarkdownRenderer content={streamingMessage} />
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              </motion.div>
+            )}
 
-          {streamingMessage && (
-            <div className="flex justify-start">
-              <div className="max-w-2xl rounded-3xl p-5 border bg-slate-900/40 border-slate-900 text-slate-200 text-sm leading-relaxed">
-                <MarkdownRenderer content={streamingMessage} />
-              </div>
-            </div>
-          )}
-
-          {loading && !streamingMessage && (
-            <div className="flex justify-start">
-              <div className="rounded-3xl p-4 bg-slate-900/40 border border-slate-900 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-slate-650 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="h-2 w-2 rounded-full bg-slate-650 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="h-2 w-2 rounded-full bg-slate-650 animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          )}
+            {loading && !streamingMessage && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                <div className="flex items-start gap-3 max-w-xl">
+                  <div className="w-7 h-7 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
+                    <Bot size={14} className="text-brand-400" />
+                  </div>
+                  <div className="rounded-xl px-4 py-3 bg-surface-900/60 border border-surface-800/40 flex items-center gap-1.5">
+                    {[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-surface-500 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />)}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {error && (
-            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 flex items-center gap-3 text-rose-400 text-xs">
-              <AlertCircle size={16} />
-              <span>{error}</span>
-            </div>
+            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 flex items-center gap-2 text-xs text-rose-400">
+              <AlertCircle size={14} /><span>{error}</span>
+            </motion.div>
           )}
           <div ref={chatEndRef} />
         </div>
 
-        <div className="p-4 md:p-6 bg-slate-950/60 border-t border-slate-900/80 flex-shrink-0">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleSendMessage(input)
-            }}
-            className="relative flex items-center"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask your mentor a question..."
-              disabled={loading}
-              className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 pl-4.5 pr-14 py-3.5 text-xs sm:text-sm text-slate-200 placeholder-slate-550 outline-none transition focus:border-sky-500 disabled:opacity-60"
+        <div className="p-4 md:p-5 bg-surface-950/80 border-t border-surface-800/30 flex-shrink-0">
+          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(input) }} className="relative flex items-center">
+            <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your mentor a question..." disabled={loading}
+              className="w-full rounded-xl border border-surface-800/50 bg-surface-900/50 pl-4 pr-14 py-3 text-sm text-surface-200 placeholder-surface-500/60 outline-none transition focus:border-brand-400/30 disabled:opacity-50"
             />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="absolute right-2 p-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-sky-500/10"
-            >
-              <Send size={15} />
-            </button>
+            <Button type="submit" disabled={loading || !input.trim()} size="sm" className="absolute right-1.5 !p-2 !rounded-lg"><Send size={14} /></Button>
           </form>
         </div>
       </div>
+
+      <QuizModal isOpen={quizOpen} onClose={() => setQuizOpen(false)} />
+      <CodeReviewModal isOpen={codeReviewOpen} onClose={() => setCodeReviewOpen(false)} />
     </div>
   )
 }

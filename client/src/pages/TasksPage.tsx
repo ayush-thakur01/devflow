@@ -1,300 +1,189 @@
 import { useState, useEffect } from 'react'
-import { Plus, Check, Edit, Trash2, Calendar, Tag, AlertCircle } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Plus, Check, Edit, Trash2, Calendar, Tag, AlertCircle, Filter, ListChecks, Search } from 'lucide-react'
 import api from '../services/api'
 import TaskForm from '../components/TaskForm'
 import useToastStore from '../store/toastStore'
+import useOptimisticUpdate from '../hooks/useOptimisticUpdate'
+import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import Card from '../components/ui/Card'
+
+const priorityConfig = {
+  high: { color: 'rose', label: 'High' },
+  medium: { color: 'amber', label: 'Medium' },
+  low: { color: 'emerald', label: 'Low' },
+}
 
 const TasksPage = () => {
   const addToast = useToastStore((state) => state.addToast)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState('all') // all, daily, weekly, monthly, goal
-  const [statusFilter, setStatusFilter] = useState('all') // all, pending, completed
-  
-  // Modal states
+  const [activeTab, setActiveTab] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+
+  const { optimisticUpdate, optimisticDelete, optimisticAdd, optimisticReplace } = useOptimisticUpdate(setTasks)
 
   const fetchTasks = async () => {
     setLoading(true)
     setError('')
     try {
-      const response = await api.get('/tasks')
-      setTasks(response.data.data.tasks || [])
-    } catch (err) {
-      setError('Failed to fetch tasks. Please reload.')
-    } finally {
-      setLoading(false)
-    }
+      const res = await api.get('/tasks')
+      setTasks(res.data.data.tasks || [])
+    } catch { setError('Failed to fetch tasks.') }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    fetchTasks()
-  }, [])
+  useEffect(() => { fetchTasks() }, [])
 
   const handleToggleComplete = async (task) => {
     const updatedStatus = task.status === 'completed' ? 'pending' : 'completed'
-    
-    // Optimistic UI update
-    setTasks(prev =>
-      prev.map(t =>
-        t._id === task._id
-          ? { ...t, status: updatedStatus, completedAt: updatedStatus === 'completed' ? new Date().toISOString() : null }
-          : t
-      )
-    )
-
-    try {
-      await api.put(`/tasks/${task._id}`, { status: updatedStatus })
-    } catch (err) {
-      // Revert if error
-      fetchTasks()
-    }
+    optimisticUpdate(task._id, (t) => ({
+      ...t,
+      status: updatedStatus,
+      completedAt: updatedStatus === 'completed' ? new Date().toISOString() : null,
+    }))
+    try { await api.put(`/tasks/${task._id}`, { status: updatedStatus }) }
+    catch { fetchTasks() }
   }
 
   const handleCreateOrUpdate = async (formData) => {
     try {
       if (editingTask) {
-        const response = await api.put(`/tasks/${editingTask._id}`, formData)
-        const updatedTask = response.data.data.task
-        setTasks(prev => prev.map(t => (t._id === updatedTask._id ? updatedTask : t)))
+        const res = await api.put(`/tasks/${editingTask._id}`, formData)
+        optimisticReplace(editingTask._id, res.data.data.task)
         addToast('Task updated')
       } else {
-        const response = await api.post('/tasks', formData)
-        const newTask = response.data.data.task
-        setTasks(prev => [newTask, ...prev])
+        const res = await api.post('/tasks', formData)
+        optimisticAdd(res.data.data.task)
         addToast('Task created')
       }
       setIsModalOpen(false)
       setEditingTask(null)
-    } catch (err) {
-      setError('Failed to save task. Try again.')
-      addToast('Failed to save task', 'error')
-    }
+    } catch { setError('Failed to save task.'); addToast('Failed to save task', 'error') }
   }
 
   const handleDeleteTask = async (id) => {
-    setTasks(prev => prev.filter(t => t._id !== id))
-    try {
-      await api.delete(`/tasks/${id}`)
-      addToast('Task deleted')
-    } catch (err) {
-      fetchTasks()
-      addToast('Failed to delete task', 'error')
-    }
+    optimisticDelete(id)
+    try { await api.delete(`/tasks/${id}`); addToast('Task deleted') }
+    catch { fetchTasks(); addToast('Failed to delete task', 'error') }
   }
 
-  const handleOpenEdit = (task) => {
-    setEditingTask(task)
-    setIsModalOpen(true)
-  }
-
-  const handleOpenCreate = () => {
-    setEditingTask(null)
-    setIsModalOpen(true)
-  }
-
-  // Filter tasks
   const filteredTasks = tasks.filter(task => {
     const matchesTab = activeTab === 'all' || task.type === activeTab
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'completed' && task.status === 'completed') ||
-      (statusFilter === 'pending' && task.status !== 'completed')
-    return matchesTab && matchesStatus
+    const matchesStatus = statusFilter === 'all' || (statusFilter === 'completed' && task.status === 'completed') || (statusFilter === 'pending' && task.status !== 'completed')
+    const matchesSearch = !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || (task.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesTab && matchesStatus && matchesSearch
   })
 
-  const getPriorityStyle = (priority) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-      case 'medium':
-        return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-      case 'low':
-      default:
-        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-    }
-  }
-
-  const getTypeLabel = (type) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
-  }
+  const tabs = ['all', 'daily', 'weekly', 'monthly', 'goal']
 
   return (
-    <div className="px-6 py-10 sm:px-8 lg:px-12 max-w-6xl mx-auto text-slate-100 min-h-screen">
-      <header className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-[0.35em] text-sky-400">Manage Focus</p>
-          <h1 className="mt-2 text-3xl font-extrabold text-white">Tasks & Goals</h1>
-          <p className="mt-2 text-slate-400">Organize your daily targets and keep streaks alive.</p>
+    <div className="px-5 py-8 sm:px-8 lg:px-10 max-w-6xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-brand-400 font-semibold">Manage Focus</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">Tasks & Goals</h1>
+          </div>
+          <Button onClick={() => { setEditingTask(null); setIsModalOpen(true) }} className="self-start sm:self-auto">
+            <Plus size={16} /> Create Task
+          </Button>
         </div>
-        <button
-          onClick={handleOpenCreate}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20 self-start sm:self-auto"
-        >
-          <Plus size={18} />
-          Create Task
-        </button>
-      </header>
 
-      {/* Tabs & Filters bar */}
-      <div className="flex flex-col gap-4 border-b border-slate-800 pb-5 mb-8 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {['all', 'daily', 'weekly', 'monthly', 'goal'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition ${
-                activeTab === tab
-                  ? 'bg-slate-900 border border-slate-700 text-sky-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40 border border-transparent'
-              }`}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 pb-5 border-b border-surface-800/40">
+          <div className="flex flex-wrap gap-1.5">
+            {tabs.map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  activeTab === tab ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' : 'text-surface-400 hover:text-surface-200 border border-transparent hover:bg-surface-800/40'
+                }`}
+              >
+                {tab === 'all' ? 'All Types' : tab === 'goal' ? 'Goals' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-surface-400">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tasks..."
+                className="rounded-lg border border-surface-800 bg-surface-900 pl-8 pr-3 py-1.5 text-surface-300 outline-none text-xs focus:border-brand-400/30 w-40"
+              />
+            </div>
+            <Filter size={12} />
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-lg border border-surface-800 bg-surface-900 px-2.5 py-1.5 text-surface-300 outline-none text-xs focus:border-brand-400/30"
             >
-              {tab === 'all' ? 'All Types' : tab === 'goal' ? 'Goals' : tab}
-            </button>
-          ))}
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500 font-medium uppercase tracking-wider">Status:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-slate-300 font-semibold outline-none transition focus:border-sky-500"
-          >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-      </div>
+        {error && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3.5 flex items-center gap-2.5 text-xs text-rose-400">
+            <AlertCircle size={14} /><span>{error}</span>
+          </motion.div>
+        )}
 
-      {error && (
-        <div className="mb-6 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 flex items-center gap-3 text-rose-400 text-sm">
-          <AlertCircle size={18} />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="space-y-3 mt-8">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-16 rounded-2xl bg-slate-900/50 animate-pulse border border-slate-850" />
-          ))}
-        </div>
-      ) : filteredTasks.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-800 p-12 text-center max-w-lg mx-auto mt-12 bg-slate-900/10">
-          <p className="text-slate-400 font-medium">No tasks found in this category.</p>
-          <p className="text-xs text-slate-500 mt-2">Get started by creating a new daily, weekly, or monthly focus task!</p>
-          <button
-            onClick={handleOpenCreate}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 transition"
-          >
-            <Plus size={14} /> Add your first task
-          </button>
-        </div>
-      ) : (
-        <div className="grid gap-3.5 mt-6">
-          {filteredTasks.map((task) => (
-            <div
-              key={task._id}
-              className={`group flex items-center justify-between rounded-2xl border bg-slate-900/60 p-4 transition-all hover:bg-slate-900/90 ${
-                task.status === 'completed' ? 'border-slate-850 opacity-60' : 'border-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-4.5 min-w-0 flex-1">
-                {/* Checkbox selector */}
-                <button
-                  onClick={() => handleToggleComplete(task)}
-                  className={`flex-shrink-0 h-5.5 w-5.5 rounded-lg flex items-center justify-center transition border ${
-                    task.status === 'completed'
-                      ? 'bg-sky-500 border-sky-400 text-slate-950'
-                      : 'border-slate-700 hover:border-sky-400 bg-slate-950 text-transparent hover:text-sky-500/20'
-                  }`}
-                >
-                  <Check size={14} className="stroke-[3]" />
-                </button>
-
+        {loading ? (
+          <div className="space-y-2.5">{Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-16 rounded-xl bg-surface-800/30 animate-pulse border border-surface-800/40" />
+          ))}</div>
+        ) : filteredTasks.length === 0 ? (
+          <Card className="premium-hover-light text-center py-12">
+            <ListChecks size={32} className="text-surface-600 mx-auto mb-3" />
+            <p className="text-sm text-surface-400 font-medium">No tasks found</p>
+            <p className="text-xs text-surface-500 mt-1">Create a new task to get started.</p>
+            <Button size="sm" className="mt-4" onClick={() => { setEditingTask(null); setIsModalOpen(true) }}><Plus size={14} /> Create Task</Button>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {filteredTasks.map((task, idx) => (
+              <motion.div
+                key={task._id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03, duration: 0.3 }}
+                className={`${task.status !== 'completed' ? 'premium-hover' : ''} group flex items-center justify-between rounded-xl border bg-surface-900/30 p-3.5 transition-all hover:bg-surface-900/60 ${task.status === 'completed' ? 'border-surface-800/30 opacity-60' : 'border-surface-800/50 hover:border-surface-700/60'}`}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <button onClick={() => handleToggleComplete(task)}
+                    className={`flex-shrink-0 w-5 h-5 rounded-lg flex items-center justify-center transition-all border ${task.status === 'completed' ? 'bg-brand-500 border-brand-400 text-white' : 'border-surface-700 hover:border-brand-400 bg-surface-900 text-transparent'}`}
+                  >
+                    <Check size={12} className="stroke-[3]" />
+                  </button>
                   <div className="min-w-0 flex-1">
-                    <h3 className={`font-semibold text-sm sm:text-base text-white transition truncate ${task.status === 'completed' ? 'line-through text-slate-400' : ''}`}>
-                      {task.title}
-                    </h3>
-                    {task.description && (
-                      <p className="text-xs text-slate-400 mt-1 truncate max-w-xl group-hover:text-slate-300">{task.description}</p>
-                    )}
-
-                    {task.subtasks && task.subtasks.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {task.subtasks.map((st, si) => (
-                          <div key={si} className="flex items-center gap-2 text-xs">
-                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${st.completed ? 'bg-sky-500' : 'bg-slate-700'}`} />
-                            <span className={`${st.completed ? 'line-through text-slate-500' : 'text-slate-400'}`}>{st.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
-                    {/* Category */}
-                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                      <Tag size={10} />
-                      {task.category}
-                    </span>
-                    
-                    {/* Due Date */}
-                    {task.dueDate && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                        <Calendar size={10} />
-                        {new Date(task.dueDate).toLocaleDateString()}
-                      </span>
-                    )}
-
-                    {/* Task Type badge */}
-                    <span className="bg-slate-800 border border-slate-700/60 px-2 py-0.5 rounded-md text-[10px] text-slate-400 font-medium">
-                      {getTypeLabel(task.type)}
-                    </span>
-
-                    {/* Priority Badge */}
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${getPriorityStyle(task.priority)}`}>
-                      {task.priority}
-                    </span>
+                    <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-200'}`}>{task.title}</p>
+                    <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+                      {task.category && <span className="text-[10px] text-surface-500 flex items-center gap-1"><Tag size={9} />{task.category}</span>}
+                      {task.dueDate && <span className="text-[10px] text-surface-500 flex items-center gap-1"><Calendar size={9} />{new Date(task.dueDate).toLocaleDateString()}</span>}
+                      <Badge color={priorityConfig[task.priority]?.color || 'slate'}>{priorityConfig[task.priority]?.label || task.priority}</Badge>
+                      <span className="text-[10px] text-surface-500 uppercase tracking-wider">{task.type}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-3">
+                  <button onClick={() => { setEditingTask(task); setIsModalOpen(true) }} className="p-1.5 rounded-lg text-surface-400 hover:text-brand-400 hover:bg-surface-800/40 transition" title="Edit">
+                    <Edit size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteTask(task._id)} className="p-1.5 rounded-lg text-surface-400 hover:text-rose-400 hover:bg-rose-500/5 transition" title="Delete">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
-              {/* Action buttons on hover */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-4">
-                <button
-                  onClick={() => handleOpenEdit(task)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800/40 transition"
-                  title="Edit task"
-                >
-                  <Edit size={16} />
-                </button>
-                <button
-                  onClick={() => handleDeleteTask(task._id)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 transition"
-                  title="Delete task"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Task Form Modal */}
-      <TaskForm
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setEditingTask(null)
-        }}
-        onSubmit={handleCreateOrUpdate}
-        initialData={editingTask}
-      />
+        <TaskForm isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingTask(null) }} onSubmit={handleCreateOrUpdate} initialData={editingTask} />
+      </motion.div>
     </div>
   )
 }
