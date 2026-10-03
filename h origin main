@@ -1,0 +1,10 @@
+* [33m5920de2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Add root .gitignore
+* [33m456425e[m Add root .gitignore
+* [33m066f623[m feat: create initial application pages
+[31m|[m * [33m9a0809c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Update README with project architecture and API details
+[31m|[m * [33mb08d988[m Remove project architecture details from README
+[31m|[m * [33m29e1f5f[m Initialize README with project details and setup
+[31m|[m[31m/[m  
+* [33me559c8b[m feat: create initial application pages
+* [33m161511b[m feat: create initial application pages
+* [33md5999f7[m chore: initialize React frontend with Vite

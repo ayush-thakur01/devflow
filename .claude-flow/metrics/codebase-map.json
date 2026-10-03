@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-09-04T18:13:53.681Z",
+  "projectRoot": "C:\\Users\\ayush\\Devflow",
+  "structure": {
+    "hasPackageJson": true,
+    "hasTsConfig": false,
+    "hasClaudeConfig": true,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1788545633681
+}
